@@ -1,0 +1,32 @@
+SmartRide Frontend — Milestone 1 Fixes (UI only)
+
+Key Flow (as required):
+- Landing page with only two large choices: Driver / Passenger.
+- Role-specific Login and Register pages (no duplicate auth pages elsewhere).
+- Driver after login: Dashboard -> Post Ride, My Rides.
+- Passenger after login: Dashboard -> Search Rides, My Bookings.
+
+What I changed:
+1) Routing: Rewrote App.jsx routes to only include Milestone‑1 pages.
+2) Removed duplicate auth/pages: deleted src/pages/Login.jsx, Register.jsx, Signup.jsx, DashboardDriver.jsx, DashboardPassenger.jsx, PostRide.jsx, SearchResults.jsx.
+3) New pages created:
+   - src/pages/RoleSelect.jsx
+   - src/pages/driver/{Login.jsx, Register.jsx, Dashboard.jsx, PostRide.jsx, MyRides.jsx}
+   - src/pages/passenger/{Login.jsx, Register.jsx, Dashboard.jsx, Search.jsx, Bookings.jsx}
+4) Fixed AuthContext (login/register/logout) and ProtectedRoute; removed mock usage.
+5) API wiring (axios): GET /rides (with source,destination,date), POST /rides, GET /rides/mine, POST /bookings, GET /bookings/mine.
+6) Forms match Milestone‑1 schema exactly:
+   - Driver Register: name, email, phone, password, vehicle_model, license_plate, capacity.
+   - Passenger Register: name, email, phone, password.
+   - Post Ride: source, destination, departure_date (DATE), departure_time (TIME), seats_total, price (optional filter-ready).
+   - Search Ride: source, destination, departure_date (DATE), Book with seats_booked.
+7) UI cleanup: Bootstrap CDN retained; Tailwind can remain for utility classes if desired.
+8) Fixed broken CSS file end-of-line; removed mock services/components.
+
+Environment:
+- Base API URL taken from VITE_API_BASE_URL (fallback http://localhost:8080/api/v1).
+- Requires React Router DOM v7 (already in package.json).
+
+Notes:
+- This frontend expects backend endpoints consistent with Milestone‑1 (no payments/reviews).
+- Seat availability is enforced by backend transactional logic.
