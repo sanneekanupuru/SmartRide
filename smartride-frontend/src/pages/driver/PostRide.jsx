@@ -1,7 +1,7 @@
 import { useState } from "react";
 import api from "../../services/api";
 
-export default function PostRide() {
+export default function DriverPostRide() {
   const [form, setForm] = useState({
     source: "",
     destination: "",

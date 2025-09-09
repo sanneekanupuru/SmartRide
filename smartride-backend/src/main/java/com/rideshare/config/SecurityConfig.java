@@ -33,17 +33,13 @@ public class SecurityConfig {
         JwtFilter jwtFilter = new JwtFilter(jwtUtil);
 
         http.csrf(csrf -> csrf.disable())
-                .cors(cors -> {}) // enable CORS
+                .cors(cors -> {}) // Spring Security will use the CorsFilter bean
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // allow login & register
+                        // public endpoints
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/error").permitAll()
-
-                        // allow public ride search
-                        .requestMatchers(HttpMethod.GET, "/api/v1/rides").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/rides/**").permitAll()
-
                         // everything else requires authentication
                         .anyRequest().authenticated()
                 );
@@ -58,17 +54,17 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
-    // CORS filter to allow frontend requests
+    // Global CORS filter
     @Bean
     public CorsFilter corsFilter() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of("http://localhost:5173")); // frontend URL
-        config.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
+        config.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS")); // include PATCH
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", config);
+        source.registerCorsConfiguration("/**", config); // apply to all endpoints
         return new CorsFilter(source);
     }
 }

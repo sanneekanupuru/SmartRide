@@ -1,19 +1,20 @@
-import axios from 'axios';
+// src/services/api.js
+import axios from "axios";
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
-
-const api = axios.create({ baseURL });
-
-// Attach token if present
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
+const api = axios.create({
+  baseURL: "http://localhost:8080/api/v1", // backend base URL
+  headers: {
+    "Content-Type": "application/json",
+  },
 });
 
-api.interceptors.response.use(
-  (res) => res,
-  (err) => Promise.reject(err)
-);
+// Attach JWT token automatically (if using auth)
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
 export default api;
