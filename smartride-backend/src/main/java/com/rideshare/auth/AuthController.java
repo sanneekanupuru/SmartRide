@@ -1,5 +1,6 @@
 package com.rideshare.auth;
 
+import com.rideshare.notifications.NotificationService;
 import com.rideshare.security.JwtUtil;
 import com.rideshare.users.User;
 import com.rideshare.users.UserRepository;
@@ -18,12 +19,17 @@ public class AuthController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final NotificationService notificationService;
 
     @Autowired
-    public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
+    public AuthController(UserRepository userRepository,
+                          PasswordEncoder passwordEncoder,
+                          JwtUtil jwtUtil,
+                          NotificationService notificationService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
+        this.notificationService = notificationService;
     }
 
     @PostMapping("/register")
@@ -45,7 +51,7 @@ public class AuthController {
 
         User u = new User();
         u.setEmail(email);
-        u.setPassword(passwordEncoder.encode(req.getPassword())); // no trim, same as login
+        u.setPassword(passwordEncoder.encode(req.getPassword())); // store encoded password
         u.setName(req.getName());
         u.setPhone(req.getPhone());
         u.setRole(role);
@@ -57,6 +63,25 @@ public class AuthController {
         }
 
         userRepository.save(u);
+
+        // --- Send welcome email + in-app notification ---
+        try {
+            String title = "Welcome to SmartRide 🎉";
+            String msg = String.format(
+                    "Hello %s,\n\nWelcome to SmartRide! Your account has been created successfully as a %s.\n" +
+                            "You can now log in and start your journey with us.\n\nHappy Riding!\n– SmartRide Team",
+                    u.getName(), u.getRole()
+            );
+
+            notificationService.createNotification(
+                    u.getId(), null, null,
+                    title, msg,
+                    true, u.getEmail()
+            );
+        } catch (Exception ex) {
+            System.err.println("Welcome notification error: " + ex.getMessage());
+        }
+
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("message", "registered"));
     }
 
@@ -68,7 +93,7 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "invalid credentials"));
         }
         User u = opt.get();
-        if (!passwordEncoder.matches(req.getPassword(), u.getPassword())) { // removed .trim()
+        if (!passwordEncoder.matches(req.getPassword(), u.getPassword())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "invalid credentials"));
         }
         String token = jwtUtil.generateToken(u.getEmail(), u.getRole());

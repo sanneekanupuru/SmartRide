@@ -27,6 +27,13 @@ public class Booking {
     @Column(name = "fare", precision = 10, scale = 2)
     private BigDecimal fare;
 
+    @Column(name = "is_disputed", nullable = false)
+    private boolean isDisputed = false;
+
+    // NEW: driver approval flag
+    @Column(name = "driver_approved", nullable = false)
+    private Boolean driverApproved = false;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
@@ -65,6 +72,13 @@ public class Booking {
     public BigDecimal getFare() { return fare; }
     public void setFare(BigDecimal fare) { this.fare = fare; }
 
+    public boolean isDisputed() { return isDisputed; }
+    public void setDisputed(boolean disputed) { isDisputed = disputed; }
+
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
+
+    // NEW: driverApproved getter/setter
+    public Boolean getDriverApproved() { return driverApproved; }
+    public void setDriverApproved(Boolean driverApproved) { this.driverApproved = driverApproved; }
 }

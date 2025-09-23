@@ -33,17 +33,22 @@ public class SecurityConfig {
         JwtFilter jwtFilter = new JwtFilter(jwtUtil);
 
         http.csrf(csrf -> csrf.disable())
-                .cors(cors -> {}) // Spring Security will use the CorsFilter bean
+                .cors(cors -> {}) // Use global CorsFilter
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // public endpoints
+                        // Public endpoints
                         .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers("/api/v1/admin/login").permitAll() // ✅ fixed
+                        .requestMatchers("/api/v1/driver/login", "/api/v1/driver/register").permitAll()
+                        .requestMatchers("/api/v1/passenger/login", "/api/v1/passenger/register").permitAll()
                         .requestMatchers("/error").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/rides/**").permitAll()
-                        // everything else requires authentication
+                        .requestMatchers(HttpMethod.GET, "/api/v1/rides/search").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/rides/{id}").permitAll()
+                        // Everything else requires authentication
                         .anyRequest().authenticated()
                 );
 
+        // Add JWT filter before standard auth filter
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -58,13 +63,13 @@ public class SecurityConfig {
     @Bean
     public CorsFilter corsFilter() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:5173")); // frontend URL
-        config.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS")); // include PATCH
+        config.setAllowedOrigins(List.of("http://localhost:5173"));
+        config.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", config); // apply to all endpoints
+        source.registerCorsConfiguration("/**", config);
         return new CorsFilter(source);
     }
 }

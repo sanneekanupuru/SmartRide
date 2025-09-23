@@ -1,5 +1,9 @@
+// src/components/Navbar.jsx
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import NotificationsBell from "./NotificationsBell";
+// chatbot widget imported but will be rendered only for non-admin (passenger/driver/guest)
+import ChatbotWidget from "./ChatbotWidget";
 
 export default function Navbar() {
   const { user, logout } = useAuth() || {};
@@ -9,6 +13,9 @@ export default function Navbar() {
     logout?.();
     navigate("/");
   };
+
+  // show chatbot on pages for non-admin (guests, passengers, drivers)
+  const showChatbot = !user?.role || user?.role === "DRIVER" || user?.role === "PASSENGER";
 
   return (
     <>
@@ -24,18 +31,31 @@ export default function Navbar() {
             )}
             {user?.isLoggedIn && (
               <>
-                {user.role === "DRIVER" ? (
+                {user.role === "DRIVER" && (
                   <>
                     <Link to="/driver/dashboard" className="hover:text-brandBlue">Dashboard</Link>
                     <Link to="/driver/post" className="hover:text-brandBlue">Post Ride</Link>
                   </>
-                ) : (
+                )}
+                {user.role === "PASSENGER" && (
                   <>
                     <Link to="/passenger/dashboard" className="hover:text-brandGreen">Dashboard</Link>
                     <Link to="/passenger/search" className="hover:text-brandGreen">Search</Link>
                   </>
                 )}
-                <button onClick={signout} className="px-4 py-2 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 transition">Logout</button>
+                {user.role === "ADMIN" && (
+                  <>
+                    <Link to="/admin/dashboard" className="hover:text-purple-600 font-medium">Admin Dashboard</Link>
+                  </>
+                )}
+                <NotificationsBell />
+                <button
+                  onClick={signout}
+                  className="px-4 py-2 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 transition"
+                >
+                  Logout
+                </button>
+
               </>
             )}
           </div>
@@ -44,6 +64,9 @@ export default function Navbar() {
 
       {/* Spacer so content doesn't collide with navbar */}
       <div className="h-20"></div>
+
+      {/* Chatbot: render only for guests/drivers/passengers (NOT admin) */}
+      {showChatbot && <ChatbotWidget />}
     </>
   );
 }

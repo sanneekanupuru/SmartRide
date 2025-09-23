@@ -8,3 +8,9 @@ body {
   padding: 0;
   font-family: 'Inter', sans-serif;
 }
+
+/* Chatbot minor tweaks (append to src/index.css) */
+@media (max-width: 480px) {
+  /* make chat panel smaller on mobile */
+  .chatbot-panel { width: calc(100% - 40px) !important; right: 20px !important; bottom: 90px !important; }
+}

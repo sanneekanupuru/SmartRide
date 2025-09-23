@@ -2,6 +2,7 @@ package com.rideshare.rides;
 
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
@@ -36,4 +37,21 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
      * Find rides posted by a specific driver.
      */
     List<Ride> findByDriverIdOrderByDepartureDatetimeDesc(Long driverId);
+
+    /**
+     * Atomically decrement seats_available by :seats when enough seats exist.
+     * Returns number of rows updated (1 if success, 0 if not enough seats).
+     */
+    @Modifying
+    @Transactional
+    @Query("UPDATE Ride r SET r.seatsAvailable = r.seatsAvailable - :seats WHERE r.id = :rideId AND r.seatsAvailable >= :seats")
+    int decrementSeatsIfAvailable(@Param("rideId") Long rideId, @Param("seats") Integer seats);
+
+    /**
+     * Restore seats (used when booking is rejected/cancelled before payment).
+     */
+    @Modifying
+    @Transactional
+    @Query("UPDATE Ride r SET r.seatsAvailable = r.seatsAvailable + :seats WHERE r.id = :rideId")
+    int incrementSeats(@Param("rideId") Long rideId, @Param("seats") Integer seats);
 }

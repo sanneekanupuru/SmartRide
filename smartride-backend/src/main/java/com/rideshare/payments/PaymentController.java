@@ -4,6 +4,9 @@ import com.rideshare.bookings.Booking;
 import com.rideshare.bookings.BookingRepository;
 import com.rideshare.rides.Ride;
 import com.rideshare.rides.RideRepository;
+import com.rideshare.users.User;
+import com.rideshare.users.UserRepository;
+import com.rideshare.notifications.NotificationService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
@@ -23,16 +26,23 @@ public class PaymentController {
     private final PaymentRepository paymentRepository;
     private final BookingRepository bookingRepository;
     private final RideRepository rideRepository;
+    private final UserRepository userRepository;
+
+    // Notification service (injected)
+    @org.springframework.beans.factory.annotation.Autowired
+    private NotificationService notificationService;
 
     private final BigDecimal BASE_FARE = BigDecimal.valueOf(50);
     private final BigDecimal RATE_PER_KM = BigDecimal.valueOf(10);
 
     public PaymentController(PaymentRepository paymentRepository,
                              BookingRepository bookingRepository,
-                             RideRepository rideRepository) {
+                             RideRepository rideRepository,
+                             UserRepository userRepository) {
         this.paymentRepository = paymentRepository;
         this.bookingRepository = bookingRepository;
         this.rideRepository = rideRepository;
+        this.userRepository = userRepository;
     }
 
     /** ---- Make Payment ---- */
@@ -44,13 +54,19 @@ public class PaymentController {
         Booking booking = bookingRepository.findById(bookingId).orElse(null);
         if (booking == null) return ResponseEntity.status(404).body(new ApiError("Booking not found"));
 
+        // NEW GUARD: ensure driver has approved this booking before payment is allowed
+        if (booking.getDriverApproved() == null || !booking.getDriverApproved()) {
+            return ResponseEntity.badRequest().body(new ApiError("Driver has not approved this booking yet. Please wait."));
+        }
+
         try {
-            // Lock ride row to prevent overselling
+            // Lock ride row to prevent overselling checks (not to decrement seats again)
             Ride ride = rideRepository.findByIdForUpdate(booking.getRideId())
                     .orElseThrow(() -> new RuntimeException("Ride not found"));
 
-            if (ride.getSeatsAvailable() < booking.getSeatsBooked()) {
-                return ResponseEntity.badRequest().body(new ApiError("Not enough seats available"));
+            if (ride.getSeatsAvailable() < 0) {
+                // Defensive check; normally seats were reserved during booking creation
+                return ResponseEntity.badRequest().body(new ApiError("Invalid seats state"));
             }
 
             // Calculate fare
@@ -78,16 +94,36 @@ public class PaymentController {
             payment.setUpdatedAt(LocalDateTime.now());
             paymentRepository.save(payment);
 
-            // --- CORRECTED: Update booking fare and status ---
+            // Update booking: set fare (calculated) and confirm booking
             booking.setBookingStatus("CONFIRMED");
-            booking.setFare(totalFare);   // <--- ADD THIS
+            booking.setFare(totalFare);
             bookingRepository.save(booking);
 
-            ride.setSeatsAvailable(ride.getSeatsAvailable() - booking.getSeatsBooked());
-            rideRepository.save(ride);
+            // NOTE: seats were already reserved at booking time. DO NOT decrement again here.
+
+            // --- Notifications: inform passenger & driver about confirmed booking ---
+            try {
+                User passenger = userRepository.findById(booking.getPassengerId()).orElse(null);
+                User driver = userRepository.findById(ride.getDriverId()).orElse(null);
+
+                if (passenger != null) {
+                    String title = "Booking confirmed";
+                    String msg = String.format("Your booking #%d is confirmed for ride from %s to %s. Driver: %s.",
+                            booking.getId(), ride.getSource(), ride.getDestination(), driver != null ? driver.getName() : "");
+                    notificationService.createNotification(passenger.getId(), ride.getId(), booking.getId(), title, msg, true, passenger.getEmail());
+                }
+                if (driver != null) {
+                    String title2 = "Booking confirmed for your ride";
+                    String msg2 = String.format("Booking #%d for your ride from %s to %s is confirmed. Passenger: %s.",
+                            booking.getId(), ride.getSource(), ride.getDestination(), passenger != null ? passenger.getName() : "");
+                    notificationService.createNotification(driver.getId(), ride.getId(), booking.getId(), title2, msg2, true, driver.getEmail());
+                }
+            } catch (Exception ex) {
+                System.err.println("Notification error (makePayment): " + ex.getMessage());
+            }
 
             // Return DTO
-            PaymentResponseDTO response = new PaymentResponseDTO(payment);
+            PaymentResponseDTO response = new PaymentResponseDTO(payment, bookingRepository, rideRepository, userRepository);
 
             return ResponseEntity.ok(response);
 
@@ -95,7 +131,6 @@ public class PaymentController {
             return ResponseEntity.status(500).body(new ApiError("Payment failed: " + e.getMessage()));
         }
     }
-
 
     /** ---- Estimate Fare ---- */
     @GetMapping("/estimate/{bookingId}")
@@ -130,12 +165,11 @@ public class PaymentController {
         try {
             Payment.PaymentStatus newStatus = Payment.PaymentStatus.valueOf(status.toUpperCase());
 
-            // ✅ Only update the payment status (no seat restore or booking cancel logic)
             payment.setStatus(newStatus);
             payment.setUpdatedAt(LocalDateTime.now());
             paymentRepository.save(payment);
 
-            return ResponseEntity.ok(new PaymentResponseDTO(payment));
+            return ResponseEntity.ok(new PaymentResponseDTO(payment, bookingRepository, rideRepository, userRepository));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(new ApiError("Invalid status. Use PENDING, COMPLETED, FAILED."));
         }
@@ -146,7 +180,7 @@ public class PaymentController {
     public ResponseEntity<?> getPaymentsByBooking(@PathVariable Long bookingId) {
         List<Payment> payments = paymentRepository.findByBookingId(bookingId);
         List<PaymentResponseDTO> result = payments.stream()
-                .map(PaymentResponseDTO::new)
+                .map(p -> new PaymentResponseDTO(p, bookingRepository, rideRepository, userRepository))
                 .collect(Collectors.toList());
         return ResponseEntity.ok(result);
     }
@@ -183,17 +217,39 @@ public class PaymentController {
     }
 
     // --- DTOs ---
-    public record PaymentResponseDTO(Long paymentId, Long bookingId, Long rideId,
-                                     BigDecimal amount, String paymentMethod, String status,
-                                     LocalDateTime createdAt) {
-        public PaymentResponseDTO(Payment p) {
-            this(p.getId(),
+    public record PaymentResponseDTO(
+            Long paymentId,
+            Long bookingId,
+            Long rideId,
+            BigDecimal amount,
+            String paymentMethod,
+            String status,
+            LocalDateTime createdAt,
+            String passengerName,
+            String driverName
+    ) {
+        public PaymentResponseDTO(Payment p,
+                                  BookingRepository bookingRepository,
+                                  RideRepository rideRepository,
+                                  UserRepository userRepository) {
+
+            this(
+                    p.getId(),
                     p.getBooking().getId(),
                     p.getBooking().getRideId(),
                     p.getAmount(),
                     p.getPaymentMethod().name(),
                     p.getStatus().name(),
-                    p.getCreatedAt());
+                    p.getCreatedAt(),
+                    userRepository.findById(p.getBooking().getPassengerId())
+                            .map(User::getName)
+                            .orElse("Unknown"),
+                    rideRepository.findById(p.getBooking().getRideId())
+                            .map(r -> userRepository.findById(r.getDriverId())
+                                    .map(User::getName)
+                                    .orElse("Unknown"))
+                            .orElse("Unknown")
+            );
         }
     }
 

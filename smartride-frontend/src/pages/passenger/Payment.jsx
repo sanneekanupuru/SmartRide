@@ -53,6 +53,12 @@ const PassengerPayment = () => {
   const handlePayment = async () => {
     if (!booking) return;
 
+    // local guard (backend enforces this too)
+    if (!booking.driverApproved) {
+      setMessage("Driver has not approved this booking yet. Please wait.");
+      return;
+    }
+
     try {
       const res = await api.post(
         `/payments/pay/${booking.bookingId}?paymentMethodStr=${paymentMethod.toUpperCase()}`
@@ -74,7 +80,8 @@ const PassengerPayment = () => {
       setTimeout(() => navigate("/passenger/dashboard"), 2000);
     } catch (err) {
       console.error("Payment failed:", err);
-      setMessage("❌ Payment failed. Try again.");
+      const errMsg = err?.response?.data?.error || "Payment failed. Try again.";
+      setMessage(`❌ ${errMsg}`);
     }
   };
 
@@ -131,6 +138,13 @@ const PassengerPayment = () => {
           </p>
         </div>
 
+        {/* Driver approval notice */}
+        {!booking.driverApproved && (
+          <div className="mb-4 alert alert-info small">
+            Your booking request is awaiting driver approval. You will be notified when the driver approves.
+          </div>
+        )}
+
         {/* Payment Method */}
         {booking.paymentStatus !== "COMPLETED" && (
           <>
@@ -142,6 +156,7 @@ const PassengerPayment = () => {
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                disabled={!booking.driverApproved} // prevent choosing until approved for clarity
               >
                 <option value="CASH">Cash</option>
                 <option value="UPI">UPI</option>
@@ -162,6 +177,7 @@ const PassengerPayment = () => {
                   onChange={(e) => setUpiId(e.target.value)}
                   placeholder="e.g. user@upi"
                   className="w-full border border-gray-300 rounded-lg p-3"
+                  disabled={!booking.driverApproved}
                 />
               </div>
             )}
@@ -178,6 +194,7 @@ const PassengerPayment = () => {
                     onChange={(e) => setCardNumber(e.target.value)}
                     placeholder="1234 5678 9012 3456"
                     className="w-full border border-gray-300 rounded-lg p-3"
+                    disabled={!booking.driverApproved}
                   />
                 </div>
                 <div className="flex space-x-4">
@@ -191,6 +208,7 @@ const PassengerPayment = () => {
                       onChange={(e) => setExpiryDate(e.target.value)}
                       placeholder="MM/YY"
                       className="w-full border border-gray-300 rounded-lg p-3"
+                      disabled={!booking.driverApproved}
                     />
                   </div>
                   <div className="flex-1">
@@ -203,6 +221,7 @@ const PassengerPayment = () => {
                       onChange={(e) => setCvv(e.target.value)}
                       placeholder="123"
                       className="w-full border border-gray-300 rounded-lg p-3"
+                      disabled={!booking.driverApproved}
                     />
                   </div>
                 </div>
@@ -221,6 +240,7 @@ const PassengerPayment = () => {
                     onChange={(e) => setWalletProvider(e.target.value)}
                     placeholder="Paytm, PhonePe..."
                     className="w-full border border-gray-300 rounded-lg p-3"
+                    disabled={!booking.driverApproved}
                   />
                 </div>
                 <div>
@@ -233,6 +253,7 @@ const PassengerPayment = () => {
                     onChange={(e) => setWalletMobile(e.target.value)}
                     placeholder="9876543210"
                     className="w-full border border-gray-300 rounded-lg p-3"
+                    disabled={!booking.driverApproved}
                   />
                 </div>
               </div>
@@ -247,6 +268,7 @@ const PassengerPayment = () => {
             <button
               onClick={handlePayment}
               className="w-full bg-yellow-400 text-gray-900 font-bold py-3 rounded-lg shadow hover:bg-yellow-500 transition"
+              disabled={!booking.driverApproved}
             >
               Pay Now
             </button>

@@ -37,6 +37,13 @@ public class User {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    // ✅ New fields for Admin features
+    @Column(name = "is_blocked", nullable = false)
+    private boolean isBlocked = false;
+
+    @Column(name = "is_verified", nullable = false)
+    private boolean isVerified = false;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -44,7 +51,7 @@ public class User {
 
     public User() {}
 
-    // Getters and Setters
+    // ------------------- Getters & Setters -------------------
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -74,4 +81,10 @@ public class User {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public boolean isBlocked() { return isBlocked; }
+    public void setBlocked(boolean blocked) { isBlocked = blocked; }
+
+    public boolean isVerified() { return isVerified; }
+    public void setVerified(boolean verified) { isVerified = verified; }
 }
